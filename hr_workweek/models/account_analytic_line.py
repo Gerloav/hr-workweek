@@ -41,12 +41,15 @@ class AccountAnalyticLine(models.Model):
         return records
 
     def write(self, vals):
-        if "date" in vals:
-            if not self.hr_workweek_id and not self.holiday_id:
-                workweek = self.env["hr.workweek"].get_current_workweek(
-                    self.employee_id, self.date
-                )
-                if workweek:
-                    vals["hr_workweek_id"] = workweek.id
         res = super().write(vals)
+        if "date" in vals:
+            for rec in self:
+                if rec.holiday_id or (
+                    "global_leave_id" in rec._fields and rec.global_leave_id
+                ):
+                    continue
+                workweek = self.env["hr.workweek"].get_current_workweek(
+                    rec.employee_id, rec.date
+                )
+                rec.hr_workweek_id = workweek.id if workweek else False
         return res

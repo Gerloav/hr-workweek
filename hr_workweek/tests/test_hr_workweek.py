@@ -305,6 +305,46 @@ class TestHrWorkweek(TransactionCase):
         self.assertEqual(workweek.hours_worked, 3.0)
         self.assertEqual(workweek.hours_difference, workweek.hours_to_work - 3.0)
 
+    def test_timesheet_date_change_moves_to_new_workweek(self):
+        AnalyticLine = self.env["account.analytic.line"]
+        employee = self._create_employee("Date Change Employee")
+        project = self.env["project.project"].create({"name": "Date Change Project"})
+        today = fields.Date.context_today(self.Employee)
+        current_start, current_end = self.Employee.get_workweek_dates(today)
+        previous_start = current_start - timedelta(days=7)
+        previous_end = current_end - timedelta(days=7)
+        current = self.Workweek.create(
+            {
+                "employee_id": employee.id,
+                "date_start": current_start,
+                "date_end": current_end,
+            }
+        )
+        previous = self.Workweek.create(
+            {
+                "employee_id": employee.id,
+                "date_start": previous_start,
+                "date_end": previous_end,
+            }
+        )
+        line = AnalyticLine.create(
+            {
+                "name": "Today timesheet",
+                "project_id": project.id,
+                "account_id": project.account_id.id,
+                "employee_id": employee.id,
+                "date": today,
+                "unit_amount": 1.0,
+            }
+        )
+        self.assertEqual(line.hr_workweek_id, current)
+
+        line.write({"date": previous_start})
+
+        self.assertEqual(line.hr_workweek_id, previous)
+        self.assertEqual(previous.hours_worked, 1.0)
+        self.assertEqual(current.hours_worked, 0.0)
+
     def test_global_leave_timesheet_can_be_created_outside_today(self):
         AnalyticLine = self.env["account.analytic.line"]
         if "global_leave_id" not in AnalyticLine._fields:
